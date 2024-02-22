@@ -46,7 +46,7 @@ second3 (a,b,c) = b
 third3 :: (a, b, c) -> c
 third3 (a,b,c) = c
 
-createDeckCol :: Int -> [Card]
+createDeckCol :: Int -> Deck
 createDeckCol n = [Card n 00, Card n 01, Card n 01, Card n 02, Card n 02, Card n 03, Card n 03, Card n 04, Card n 04, Card n 05, Card n 05, Card n 06, Card n 06, Card n 07, Card n 07, Card n 08, Card n 08, Card n 09, Card n 09, Card n 10, Card n 10, Card n 11, Card n 11, Card n 12, Card n 12]
 startingDeck :: Deck
 startingDeck = [Card 0 13, Card 0 13, Card 0 13, Card 0 13, Card 0 14, Card 0 14, Card 0 14, Card 0 14] ++ createDeckCol 1 ++ createDeckCol 2 ++ createDeckCol 3 ++ createDeckCol 4
@@ -71,7 +71,7 @@ dealCardsPlayer :: Deck -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict 
 dealCardsPlayer deck 0 dict = (deck, dict)
 dealCardsPlayer deck n dict =
     if isNothing currentHand then
-        dealCardsPlayer (fst newDeck) (n-1) (insert n [snd newDeck] dict)
+        dealCardsPlayer (fst newDeck) (n-1) (insert n (snd newDeck : emptyHand) dict)
     else
         dealCardsPlayer (fst newDeck) (n-1) (update n (\ ch -> snd newDeck : fromJust ch) dict)
     where
@@ -80,7 +80,7 @@ dealCardsPlayer deck n dict =
 
 -- TODO: figure out how to handle base case
 dealTopCard :: Deck -> (Deck, Card)
-dealTopCard [] = ([], Card 0 00)
+dealTopCard [] = (emptyDeck, Card 0 00)
 dealTopCard (c:d) = (d, c)
 
 -- TODO: randomize
