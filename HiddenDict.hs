@@ -1,4 +1,4 @@
--- HiddenDict module adapted From TreeDict.hs, (c) 2024 David Poole
+-- HiddenDict module adapted from TreeDict.hs, (c) 2024 David Poole
 -- Original source retrieved from https://www.cs.ubc.ca/~poole/cs312/2024/haskell/TreeDict.hs
 
 module HiddenDict (

@@ -11,7 +11,8 @@ data Result = ContinueState State
     | EndGame [Double] State -- TEMP
 
 -- draw deck, top discard, other discards, dictionary of player hands
-data State = State Deck Card Hand (HiddenDict PlayerID Hand)
+-- number of players, current player, play direction
+data State = State Deck Card Hand (HiddenDict PlayerID Hand) Int PlayerID Int
 
 -- collections of cards
 data Hand = Hand [Card] -- open
