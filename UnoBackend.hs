@@ -1,6 +1,7 @@
 -- backend data for the uno
 module UnoBackend where
 import HiddenDict
+import Data.Maybe (isNothing, fromJust)
 
 -- basic framework
 data Action = Play Card | Draw
@@ -15,8 +16,8 @@ data Result = ContinueState State
 data State = State Deck Card Hand (HiddenDict PlayerID Hand) Int PlayerID Int
 
 -- collections of cards
-data Hand = Hand [Card] -- open
-data Deck = Deck [Card] -- hidden; needs to incorporate randomness
+type Hand = [Card] -- open
+type Deck = [Card] -- hidden; needs to incorporate randomness
 
 -- card colour, card type
 data Card = Card Int Int
@@ -37,3 +38,65 @@ data Card = Card Int Int
 13 = wild
 14 = wild +4
 -}
+
+first3 :: (a, b, c) -> a
+first3 (a,b,c) = a
+second3 :: (a, b, c) -> b
+second3 (a,b,c) = b
+third3 :: (a, b, c) -> c
+third3 (a,b,c) = c
+
+createDeckCol :: Int -> [Card]
+createDeckCol n = [Card n 00, Card n 01, Card n 01, Card n 02, Card n 02, Card n 03, Card n 03, Card n 04, Card n 04, Card n 05, Card n 05, Card n 06, Card n 06, Card n 07, Card n 07, Card n 08, Card n 08, Card n 09, Card n 09, Card n 10, Card n 10, Card n 11, Card n 11, Card n 12, Card n 12]
+startingDeck :: Deck
+startingDeck = [Card 0 13, Card 0 13, Card 0 13, Card 0 13, Card 0 14, Card 0 14, Card 0 14, Card 0 14] ++ createDeckCol 1 ++ createDeckCol 2 ++ createDeckCol 3 ++ createDeckCol 4
+
+emptyHand :: Hand
+emptyHand = []
+emptyDeck :: Deck
+emptyDeck = []
+
+-- NOTE: replace instances of (Card 0 00) w/ card getter helper
+-- remaining deck, starting top card, hand dictionary
+dealCards :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, Card, HiddenDict PlayerID Hand)
+dealCards deck nplayers ncards dict = (fst dealtHands, Card 0 00, snd dealtHands) where
+    dealtHands = dealCardsRound deck nplayers ncards dict
+
+dealCardsRound :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict PlayerID Hand)
+dealCardsRound deck _ 0 dict = (deck, dict)
+dealCardsRound deck nplayers ncards dict = dealCardsRound (fst newDeck) nplayers (ncards-1) (snd newDeck) where
+    newDeck = dealCardsPlayer deck nplayers dict
+
+dealCardsPlayer :: Deck -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict PlayerID Hand)
+dealCardsPlayer deck 0 dict = (deck, dict)
+dealCardsPlayer deck n dict =
+    if isNothing currentHand then
+        dealCardsPlayer (fst newDeck) (n-1) (insert n [snd newDeck] dict)
+    else
+        dealCardsPlayer (fst newDeck) (n-1) (update n (\ ch -> snd newDeck : fromJust ch) dict)
+    where
+        currentHand = get n dict
+        newDeck = dealTopCard deck
+
+-- TODO: figure out how to handle base case
+dealTopCard :: Deck -> (Deck, Card)
+dealTopCard [] = ([], Card 0 00)
+dealTopCard (c:d) = (d, c)
+
+-- TODO: randomize
+determineStartPlayer :: Int
+determineStartPlayer = 0
+
+-- TODO: implement algorithm
+shuffle :: Deck -> Deck
+shuffle deck = deck
+
+-- SETUP STEPS:
+    -- create starting deck
+    -- deal cards to all players
+        -- these form the hand dictionary
+    -- determine starting player + order
+    -- reveal top card
+initWorld :: Int -> Int -> State
+initWorld nplayers ncards = State (first3 initData) (second3 initData) emptyHand (third3 initData) nplayers determineStartPlayer 1 where
+    initData = dealCards (shuffle startingDeck) nplayers ncards emptyDict
