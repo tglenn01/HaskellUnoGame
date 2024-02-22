@@ -18,9 +18,30 @@ data State = State Deck Card Hand (HiddenDict PlayerID Hand) Int PlayerID Int
 -- collections of cards
 type Hand = [Card] -- open
 type Deck = [Card] -- hidden; needs to incorporate randomness
+-- TODO: refactor Deck to a data type so that Show can be safely overridden
+--instance Show Deck where
+--    show :: Deck -> String
+--    show d = "[Deck: " ++ show (length d) ++ "]"
 
 -- card colour, card type
 data Card = Card Int Int
+instance Show Card where
+    show :: Card -> String
+    show (Card cn tn) = colString ++ typeString where
+        colString
+            | cn == 1 = "R"
+            | cn == 2 = "Y"
+            | cn == 3 = "G"
+            | cn == 4 = "B"
+            | otherwise = "W"
+        typeString
+            | tn == 10 = "<X>"
+            | tn == 11 = "<=>"
+            | tn == 12 = "+2"
+            | tn == 13 = "ILD"
+            | tn == 14 = "+4"
+            | otherwise = show tn
+
 {- CARD MAPPING:
 0 = black (wild)
 1 = red
