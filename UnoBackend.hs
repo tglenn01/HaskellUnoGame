@@ -1,6 +1,7 @@
 -- backend data for the uno
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use uncurry" #-}
+
 module UnoBackend where
 import HiddenDict
 import Data.Maybe (isNothing, fromJust)
@@ -60,8 +61,8 @@ instance Show Card where
 13 = wild
 14 = wild +4
 -}
-data Aura = Aura Int Int Int
 
+data Aura = Aura Int Int Int
 {-
 0 = base (nothing is happening)
     0 k c = nothing special
@@ -77,7 +78,7 @@ data Aura = Aura Int Int Int
 reverse turn is easy right now, no need to worry about it
 
 these mostly depend on the top card, but there is extra information that would normally 
-be vocalizd (+2, +4, wilds), or like skip, for simplicity
+be vocalized (+2, +4, wilds), or like skip, for simplicity
 -}
 
 first3 :: (a, b, c) -> a
@@ -154,12 +155,21 @@ isCardPlayable (Aura state num col) (Card tcol tnum) (Card hcol hnum)
     | tcol == hcol = True
     | otherwise = False
 
-endRound :: State -> State
-endRound (State aura deck (Card col num) discard dict nplay currplay dir) = State (nextAura (Card col num) aura) deck (Card col num) discard dict nplay (fst dirplay) (snd dirplay) where
+endRound :: State -> Action -> Int -> State
+endRound (State aura deck (Card col num) discard dict nplay currplay dir) action nextcol = State (nextAura (Card col num) action nextcol aura) deck (Card col num) discard dict nplay (fst dirplay) (snd dirplay) where
     dirplay = if num == 11 then ((currplay + (*) (-1) dir) `mod` nplay,(*) (-1) dir) else ((currplay + dir) `mod` nplay, dir)
 
-nextAura (Card col num) aura = aura
-
+nextAura :: Card -> Action -> Int -> Aura -> Aura
+nextAura (Card tcol tnum) Draw _ (Aura state num col)
+    | state `elem` [1,4] = Aura 1 0 col
+    | otherwise = Aura 0 0 0
+nextAura (Card tcol tnum) (Play _) nextcol (Aura state num col)
+    | state == 3 = Aura 0 0 0
+    | tnum == 14 = Aura 4 (num + 4) nextcol
+    | tnum == 13 = Aura 1 0 nextcol
+    | tnum == 12 = Aura 2 (num + 2) col
+    | tnum == 10 = Aura 3 0 0
+    | otherwise = Aura 0 0 0
 
 -- draw deck, top discard, other discards, dictionary of player hands
 -- number of players, current player, play direction
