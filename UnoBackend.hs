@@ -63,6 +63,23 @@ instance Show Card where
 -}
 
 data Aura = Aura Int Int Int
+instance Show Aura where
+    show :: Aura -> String
+    show (Aura state num col)
+        | state == 1 = "[Aura: " ++ stringifyCol col ++ "]"
+        | state == 2 = "[Aura: +" ++ show num ++ "]"
+        | state == 3 = "[Aura: turn skipped]"
+        | state == 4 = "[Aura: +" ++ show num ++ ", " ++ stringifyCol col ++ "]"
+        | otherwise = "[Aura: none]"
+
+stringifyCol :: Int -> String
+stringifyCol col
+    | col == 1 = "red"
+    | col == 2 = "yellow"
+    | col == 3 = "green"
+    | col == 4 = "blue"
+    | otherwise = "black"
+
 {-
 0 = base (nothing is happening)
     0 k c = nothing special
@@ -164,7 +181,6 @@ nextAura (Card tcol tnum) Draw _ (Aura state num col)
     | state `elem` [1,4] = Aura 1 0 col
     | otherwise = Aura 0 0 0
 nextAura (Card tcol tnum) (Play _) nextcol (Aura state num col)
-    | state == 3 = Aura 0 0 0
     | tnum == 14 = Aura 4 (num + 4) nextcol
     | tnum == 13 = Aura 1 0 nextcol
     | tnum == 12 = Aura 2 (num + 2) col
