@@ -4,7 +4,8 @@
 
 module UnoBackend where
 import HiddenDict
-import Data.Maybe (isNothing, fromJust)
+import Text.Read (readMaybe)
+import Data.Maybe (isNothing, isJust, fromJust)
 
 -- basic framework
 data Action = Play Card | Draw
@@ -17,6 +18,7 @@ data Result = ContinueState State
 -- current gameplay aura, draw deck, top discard, other discards, dictionary of player hands
 -- number of players, current player, play direction
 data State = State Aura Deck Card Deck (HiddenDict PlayerID Hand) Int PlayerID Int
+-- NOTE: make sure draw deck is not shown in state
 
 -- collections of cards
 type Hand = [Card] -- open
@@ -44,6 +46,14 @@ instance Show Card where
             | tn == 13 = "ILD"
             | tn == 14 = "+4"
             | otherwise = show tn
+instance Eq Card where
+    (==) :: Card -> Card -> Bool
+    (Card c1 n1) == (Card c2 n2) = c1 == c2 && n1 == n2
+instance Ord Card where
+    (<=) :: Card -> Card -> Bool
+    (Card c1 n1) <= (Card c2 n2)
+        | c1 /= c2 = c1 < c2
+        | otherwise = n1 <= n2
 
 {- CARD MAPPING:
 0 = black (wild)
@@ -115,11 +125,11 @@ emptyHand = []
 emptyDeck :: Deck
 emptyDeck = []
 
--- NOTE: replace instances of (Card 0 00) w/ card getter helper
 -- remaining deck, starting top card, hand dictionary
 dealCards :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, Card, HiddenDict PlayerID Hand)
-dealCards deck nplayers ncards dict = (fst dealtHands, Card 0 00, snd dealtHands) where
+dealCards deck nplayers ncards dict = (fst topCard, snd topCard, snd dealtHands) where
     dealtHands = dealCardsRound deck nplayers ncards dict
+    topCard = dealTopCard (fst dealtHands)
 
 dealCardsRound :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict PlayerID Hand)
 dealCardsRound deck _ 0 dict = (deck, dict)
@@ -142,11 +152,11 @@ dealTopCard :: Deck -> (Deck, Card)
 dealTopCard [] = (emptyDeck, Card 0 00)
 dealTopCard (c:d) = (d, c)
 
--- TODO: randomize
+-- TODO: implement randomizer
 determineStartPlayer :: Int
 determineStartPlayer = 0
 
--- TODO: implement algorithm
+-- TODO: implement randomizer
 shuffle :: Deck -> Deck
 shuffle deck = deck
 
@@ -160,6 +170,51 @@ initWorld :: Int -> Int -> State
 initWorld nplayers ncards = State (Aura 0 0 0) (first3 initData) (second3 initData) emptyDeck (third3 initData) nplayers determineStartPlayer 1 where
     initData = dealCards (shuffle startingDeck) nplayers ncards emptyDict
 
+-- handHasPlayable (Aura 0 0 0) (Card 1 3) [] => False
+-- handHasPlayable (Aura 0 0 0) (Card 1 3) [(Card 4 9), (Card 0 13)] => True
+-- handHasPlayable (Aura 0 0 0) (Card 1 5) [(Card 2 4), (Card 3 12), (Card 4 2)] => False
+-- handHasPlayable (Aura 0 0 0) (Card 1 5) [(Card 2 4), (Card 3 5), (Card 4 2)] => True
+-- handHasPlayable (Aura 1 0 2) (Card 0 13) [(Card 4 2), (Card 2 5), (Card 1 11)] => True
+-- handHasPlayable (Aura 2 4 0) (Card 4 12) [(Card 2 4), (Card 3 5), (Card 4 2)] => False
+-- handHasPlayable (Aura 2 4 0) (Card 4 12) [(Card 3 5), (Card 2 12), (Card 0 14)] => True
+-- handHasPlayable (Aura 4 4 0) (Card 4 12) [(Card 3 12), (Card 0 14), (Card 1 10)] => True
+handHasPlayable :: Aura -> Card -> [Card] -> Bool
+handHasPlayable _ _ [] = False
+handHasPlayable aura card hand = isCardPlayable aura card (head hand) || handHasPlayable aura card (tail hand)
+
+-- getHandPlayable (Aura 0 0 0) (Card 1 3) []
+--     => []
+-- getHandPlayable (Aura 0 0 0) (Card 1 3) [(Card 2 4), (Card 1 1), (Card 3 12), (Card 4 3), (Card 1 9), (Card 0 13), (Card 0 14)]
+--     => [(Card 1 1), (Card 4 3), (Card 1 9), (Card 0 13), (Card 0 14)]
+-- getHandPlayable (Aura 0 0 0) (Card 4 11) [(Card 2 4), (Card 1 1), (Card 3 12), (Card 3 3), (Card 1 9)]
+--     => []
+-- getHandPlayable (Aura 1 0 3) (Card 0 13) [(Card 2 4), (Card 1 1), (Card 3 12), (Card 4 3), (Card 1 9), (Card 0 13), (Card 0 14)]
+--     => [(Card 3 12), (Card 0 13), (Card 0 14)]
+-- getHandPlayable (Aura 2 6 0) (Card 0 13) [(Card 2 4), (Card 1 1), (Card 3 12), (Card 4 3), (Card 1 9), (Card 0 13), (Card 0 14)]
+--     => [(Card 3 12), (Card 0 14)]
+-- getHandPlayable (Aura 4 4 1) (Card 0 13) [(Card 2 4), (Card 1 1), (Card 3 12), (Card 4 3), (Card 1 9), (Card 0 13), (Card 0 14)]
+--     => [(Card 0 14)]
+getHandPlayable :: Aura -> Card -> [Card] -> [Card]
+getHandPlayable aura card = filter (isCardPlayable aura card)
+{-getHandPlayable aura card hand
+    | isCardPlayable aura card (head hand) = head hand:getHandPlayable aura card (tail hand)
+    | otherwise = getHandPlayable aura card (tail hand)-}
+
+-- isCardPlayable (Aura 0 0 0) (Card 1 3) (Card 4 9) => False
+-- isCardPlayable (Aura 0 0 0) (Card 1 3) (Card 1 10) => True
+-- isCardPlayable (Aura 0 0 0) (Card 1 3) (Card 3 3) => True
+-- isCardPlayable (Aura 0 0 0) (Card 1 3) (Card 0 13) => True
+-- isCardPlayable (Aura 1 0 2) (Card 0 13) (Card 4 2) => False
+-- isCardPlayable (Aura 1 0 2) (Card 0 13) (Card 2 5) => True
+-- isCardPlayable (Aura 1 0 2) (Card 0 13) (Card 0 14) => True
+-- isCardPlayable (Aura 2 4 0) (Card 4 12) (Card 2 4) => False
+-- isCardPlayable (Aura 2 4 0) (Card 4 12) (Card 0 13) => False
+-- isCardPlayable (Aura 2 4 0) (Card 4 12) (Card 2 12) => True
+-- isCardPlayable (Aura 2 4 0) (Card 4 12) (Card 0 14) => True
+-- isCardPlayable (Aura 4 4 3) (Card 0 14) (Card 1 3) => False
+-- isCardPlayable (Aura 4 4 3) (Card 0 14) (Card 3 12) => False
+-- isCardPlayable (Aura 4 4 3) (Card 0 14) (Card 0 13) => False
+-- isCardPlayable (Aura 4 4 3) (Card 0 14) (Card 0 14) => True
 isCardPlayable :: Aura -> Card -> Card -> Bool
 isCardPlayable (Aura state num col) (Card tcol tnum) (Card hcol hnum)
     | state == 4 && hnum == 14 = True
@@ -171,6 +226,18 @@ isCardPlayable (Aura state num col) (Card tcol tnum) (Card hcol hnum)
     | tnum == hnum = True
     | tcol == hcol = True
     | otherwise = False
+
+-- removeCardFromHand (Card 2 0) []
+--     => []
+-- removeCardFromHand (Card 1 8) [(Card 2 11), (Card 0 13), (Card 1 1)]
+--     => [(Card 2 11), (Card 0 13), (Card 1 1)]
+-- removeCardFromHand (Card 3 4) [(Card 1 5), (Card 4 4), (Card 0 14), (Card 3 4), (Card 2 2), (Card 3 4)]
+--     => [(Card 1 5), (Card 4 4), (Card 0 14), (Card 2 2), (Card 3 4)]
+removeCardFromHand :: Card -> [Card] -> [Card]
+removeCardFromHand _ [] = []
+removeCardFromHand card hand
+    | card == head hand = tail hand
+    | otherwise = (head hand):removeCardFromHand card (tail hand)
 
 endRound :: State -> Action -> Int -> State
 endRound (State aura deck (Card col num) discard dict nplay currplay dir) action nextcol = State (nextAura (Card col num) action nextcol aura) deck (Card col num) discard dict nplay (fst dirplay) (snd dirplay) where

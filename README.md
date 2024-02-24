@@ -1,13 +1,15 @@
-UNO GAME READ ME
-
+# UNO GAME READ ME
 
 PLAY UNO WITH FRIENDS UNDER YOUR OWN RULES!
 
 Reminder that to us your emotional damage of drawing only greens when you need a red is not only expected
 but something we will revel in
 
-Uno but better
-------------------
+## References
+
+- [https://github.com/phreid/cpsc312-othello/blob/main/Main.hs](https://github.com/phreid/cpsc312-othello/blob/main/Main.hs): code reference for basic UI structure
+
+## Uno but better
 
 - determine num of players
 - each player gets 7-11 cards (# of players?)
