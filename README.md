@@ -3,6 +3,9 @@ UNO GAME READ ME
 
 PLAY UNO WITH FRIENDS UNDER YOUR OWN RULES!
 
+Reminder that to us your emotional damage of drawing only greens when you need a red is not only expected
+but something we will revel in
+
 Uno but better
 ------------------
 
