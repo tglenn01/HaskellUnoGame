@@ -1,4 +1,6 @@
 -- backend data for the uno
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use uncurry" #-}
 module UnoBackend where
 import HiddenDict
 import Data.Maybe (isNothing, fromJust)
@@ -11,9 +13,9 @@ type PlayerID = Int
 data Result = ContinueState State
     | EndGame [Double] State -- TEMP
 
--- draw deck, top discard, other discards, dictionary of player hands
+-- current gameplay aura, draw deck, top discard, other discards, dictionary of player hands
 -- number of players, current player, play direction
-data State = State Deck Card Hand (HiddenDict PlayerID Hand) Int PlayerID Int
+data State = State Aura Deck Card Deck (HiddenDict PlayerID Hand) Int PlayerID Int
 
 -- collections of cards
 type Hand = [Card] -- open
@@ -48,7 +50,6 @@ instance Show Card where
 2 = yellow
 3 = green
 4 = blue
-
 00 = 0
 01 = 1
 …
@@ -58,6 +59,25 @@ instance Show Card where
 12 = +2
 13 = wild
 14 = wild +4
+-}
+data Aura = Aura Int Int Int
+
+{-
+0 = base (nothing is happening)
+    0 k c = nothing special
+1 = wild cards for card validity? can do other things
+    1 k c = wild played, is colour c
+2 = in draw 2 state, play a draw 2 or draw 4
+    2 k c = you must draw k cards if nothing
+3 = skip turn (for simplicity)
+    3 k c = nothing special
+4 = in draw 4 state, play a draw 4
+    4 k c = you must draw k cards if nothing, wild is colour c
+
+reverse turn is easy right now, no need to worry about it
+
+these mostly depend on the top card, but there is extra information that would normally 
+be vocalizd (+2, +4, wilds), or like skip, for simplicity
 -}
 
 first3 :: (a, b, c) -> a
@@ -119,5 +139,45 @@ shuffle deck = deck
     -- determine starting player + order
     -- reveal top card
 initWorld :: Int -> Int -> State
-initWorld nplayers ncards = State (first3 initData) (second3 initData) emptyHand (third3 initData) nplayers determineStartPlayer 1 where
+initWorld nplayers ncards = State (Aura 0 0 0) (first3 initData) (second3 initData) emptyDeck (third3 initData) nplayers determineStartPlayer 1 where
     initData = dealCards (shuffle startingDeck) nplayers ncards emptyDict
+
+isCardPlayable :: Aura -> Card -> Card -> Bool
+isCardPlayable (Aura state num col) (Card tcol tnum) (Card hcol hnum)
+    | state == 4 && hnum == 14 = True
+    | state == 2 && (hnum == 12 || hnum == 14) = True
+    | state `elem` [2,4] = False
+    | hcol == 0 = True
+    | state == 1 && col == hcol = True
+    | state == 1 = False
+    | tnum == hnum = True
+    | tcol == hcol = True
+    | otherwise = False
+
+endRound :: State -> State
+endRound (State aura deck (Card col num) discard dict nplay currplay dir) = State (nextAura (Card col num) aura) deck (Card col num) discard dict nplay (fst dirplay) (snd dirplay) where
+    dirplay = if num == 11 then ((currplay + (*) (-1) dir) `mod` nplay,(*) (-1) dir) else ((currplay + dir) `mod` nplay, dir)
+
+nextAura (Card col num) aura = aura
+
+
+-- draw deck, top discard, other discards, dictionary of player hands
+-- number of players, current player, play direction
+-- data State = State Deck Card Hand (HiddenDict PlayerID Hand) Int PlayerID Int
+
+{- CARD MAPPING:
+0 = black (wild)
+1 = red
+2 = yellow
+3 = green
+4 = blue
+00 = 0
+01 = 1
+…
+09 = 9
+10 = skip
+11 = reverse
+12 = +2
+13 = wild
+14 = wild +4
+-}
