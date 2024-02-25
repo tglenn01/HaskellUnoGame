@@ -67,12 +67,15 @@ setup = do
             putStrLn "\nInvalid input.\n"
             setup
 
+test = main
+
 main :: IO ()
 main = do
     putStrLn "\nWelcome to Uno!\n"
     state <- setup
     case state of
         Just state -> do
+            gameLoop state
             -- TODO: play game from start state
             return ()
         Nothing ->
@@ -160,3 +163,26 @@ playerPlay (State aura deck tcard discard dict nplay currplay dir) = do
     where
         currHand = get currplay dict
         jHand = fromJust currHand
+
+
+gameLoop :: State -> IO ()
+gameLoop (State aura deck tcard discard dict nplay currplay dir) = do
+    putStrLn ("It is " ++ show currplay ++ "'s turn \n")
+    case currplay :: Int of
+        0 -> do
+            putStrLn ("It up to you!\n")
+            let action = playerPlay (State aura deck tcard discard dict nplay currplay dir)
+
+            case action :: Maybe Action of
+                Just Draw -> do 
+                    putStrLn ("You have to draw :(\n")
+                Just (Play card col)  -> do
+                    putStrLn ("You played a card!\n")
+                
+
+            return (State aura deck tcard discard dict nplay currplay dir)
+        _ -> do
+            -- TODO BOT TURN
+            putStrLn "The ai is thinking\n"
+            return (State aura deck tcard discard dict nplay currplay dir)
+    gameLoop (State aura deck tcard discard dict nplay currplay dir)
