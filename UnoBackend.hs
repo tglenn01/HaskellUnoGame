@@ -8,8 +8,8 @@ import Text.Read (readMaybe)
 import Data.Maybe (isNothing, isJust, fromJust)
 
 -- basic framework
--- card played, wild colour chosen (if applicable)
-data Action = Play Card Int | Draw
+-- card played, wild colour chosen (if applicable), UNO called
+data Action = Play Card Int Bool | Draw
 type Game = Action -> State -> Result
 type Player = State -> Action
 type PlayerID = Int
@@ -20,6 +20,9 @@ data Result = ContinueState State
 -- number of players, current player, play direction
 data State = State Aura Deck Card Deck (HiddenDict PlayerID Hand) Int PlayerID Int
 -- NOTE: make sure draw deck is not shown in state
+
+-- Rules == Stack Draw 2/Draw 4/Swap hands on 7/Rotate Hnads on 0
+data Rules = Rules Bool Bool Bool Bool Int
 
 -- collections of cards
 type Hand = [Card] -- open
@@ -128,9 +131,9 @@ emptyDeck = []
 
 -- remaining deck, starting top card, hand dictionary
 dealCards :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, Card, HiddenDict PlayerID Hand)
-dealCards deck nplayers ncards dict = (fst topCard, snd topCard, snd dealtHands) where
+dealCards deck nplayers ncards dict = (first3 topCard, second3 topCard, snd dealtHands) where
     dealtHands = dealCardsRound deck nplayers ncards dict
-    topCard = dealTopCard (fst dealtHands)
+    topCard = drawTopCard (fst dealtHands) []
 
 dealCardsRound :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict PlayerID Hand)
 dealCardsRound deck _ 0 dict = (deck, dict)
@@ -141,25 +144,49 @@ dealCardsPlayer :: Deck -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict 
 dealCardsPlayer deck 0 dict = (deck, dict)
 dealCardsPlayer deck n dict =
     if isNothing currentHand then
-        dealCardsPlayer (fst newDeck) (n-1) (insert n (snd newDeck : emptyHand) dict)
+        dealCardsPlayer (first3 newDeck) (n-1) (insert n (second3 newDeck : emptyHand) dict)
     else
-        dealCardsPlayer (fst newDeck) (n-1) (update n (\ ch -> snd newDeck : fromJust ch) dict)
+        dealCardsPlayer (first3 newDeck) (n-1) (update n (\ ch -> second3 newDeck : fromJust ch) dict)
     where
         currentHand = get n dict
-        newDeck = dealTopCard deck
+        newDeck = drawTopCard deck []
 
--- TODO: figure out how to handle base case
-dealTopCard :: Deck -> (Deck, Card)
-dealTopCard [] = (emptyDeck, Card 0 00)
-dealTopCard (c:d) = (d, c)
+getHand :: HiddenDict PlayerID Hand -> Int -> Hand
+getHand dict currplay
+    | isJust hand = fromJust hand
+    | otherwise = []
+    where
+        hand = get currplay dict
+
+-- NOTE: need to watch out for case where discard pile is empty
+-- deck to draw from, discard pile
+drawTopCard :: Deck -> Deck -> (Deck, Card, Deck)
+drawTopCard [] discard = (d, c, emptyDeck) where
+    (c:d) = shuffle discard 15632
+drawTopCard (c:d) discard = (d, c, discard)
+
+drawCards :: Deck -> Deck -> Int -> (Deck, [Card], Deck)
+drawCards deck discard 0 = (deck, [], discard)
+drawCards deck discard n = (finalDeck, card:hand, finalDiscard) where
+    (newDeck, card, newDiscard) = drawTopCard deck discard
+    (finalDeck, hand, finalDiscard) = drawCards newDeck newDiscard (n-1)
 
 -- TODO: implement randomizer
-determineStartPlayer :: Int
-determineStartPlayer = 0
+determineStartPlayer :: Int -> Int -> Int
+determineStartPlayer numplayers seed = seed `mod` numplayers
 
 -- TODO: implement randomizer
-shuffle :: Deck -> Deck
-shuffle deck = deck
+shuffle :: [Card] -> Int -> [Card]
+shuffle [] _ = []
+shuffle deck seed = deck !! pos:shuffle (fst (splitDeck pos deck) ++ snd (splitDeck pos deck)) seed where
+    pos = (seed `mod` length deck)
+
+splitDeck :: Int -> [Card] -> ([Card],[Card])
+splitDeck _ [] = ([],[])
+splitDeck pos deck
+    | pos == 0 = ([],tail deck)
+    | pos == length deck - 1 = (fst (splitAt pos deck),[])
+    | otherwise =  (fst (splitAt pos deck),tail (snd (splitAt pos deck)))
 
 -- SETUP STEPS:
     -- create starting deck
@@ -168,8 +195,8 @@ shuffle deck = deck
     -- determine starting player + order
     -- reveal top card
 initWorld :: Int -> Int -> State
-initWorld nplayers ncards = State (Aura 0 0 0) (first3 initData) (second3 initData) emptyDeck (third3 initData) nplayers determineStartPlayer 1 where
-    initData = dealCards (shuffle startingDeck) nplayers ncards emptyDict
+initWorld nplayers ncards = State (Aura 0 0 0) (first3 initData) (second3 initData) emptyDeck (third3 initData) nplayers (determineStartPlayer nplayers 72684) 1 where
+    initData = dealCards (shuffle startingDeck 8675309) nplayers ncards emptyDict
 
 -- handHasPlayable (Aura 0 0 0) (Card 1 3) [] => False
 -- handHasPlayable (Aura 0 0 0) (Card 1 3) [(Card 4 9), (Card 0 13)] => True
@@ -238,7 +265,7 @@ removeCardFromHand :: Card -> [Card] -> [Card]
 removeCardFromHand _ [] = []
 removeCardFromHand card hand
     | card == head hand = tail hand
-    | otherwise = (head hand):removeCardFromHand card (tail hand)
+    | otherwise = head hand : removeCardFromHand card (tail hand)
 
 endRound :: State -> Action -> State
 endRound (State aura deck (Card col num) discard dict nplay currplay dir) action = State (nextAura (Card col num) action aura) deck (Card col num) discard dict nplay (fst dirplay) (snd dirplay) where
@@ -248,11 +275,11 @@ nextAura :: Card -> Action -> Aura -> Aura
 nextAura (Card tcol tnum) Draw (Aura state num col)
     | state `elem` [1,4] = Aura 1 0 col
     | otherwise = Aura 0 0 0
-nextAura (Card tcol tnum) (Play _ nextcol) (Aura state num col)
+nextAura (Card tcol tnum) (Play _ nextcol _) (Aura state num col)
     | tnum == 14 = Aura 4 (num + 4) nextcol
     | tnum == 13 = Aura 1 0 nextcol
     | tnum == 12 = Aura 2 (num + 2) col
-    | tnum == 10 = Aura 3 0 0   -- NOTE: may not need this case in the future
+    | tnum == 10 = Aura 3 0 0
     | otherwise = Aura 0 0 0
 
 -- draw deck, top discard, other discards, dictionary of player hands
