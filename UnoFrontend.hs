@@ -60,7 +60,7 @@ setup = do
     putStr "Your choice: "
     line <- getLine
     case readMaybe line of
-        Just 1 -> do 
+        Just 1 -> do
             return (Just (initWorld 4 7))
         Just 9 -> exitSuccess
         _ -> do
@@ -71,14 +71,14 @@ main :: IO ()
 main = do
     putStrLn "\nWelcome to Uno!\n"
     state <- setup
-    case state of 
+    case state of
         Just state -> do
             -- TODO: play game from start state
             return ()
         Nothing ->
             return ()
 
-chooseColor :: IO Int 
+chooseColor :: IO Int
 chooseColor = do
     putStrLn "\nYou played a wild! Select a colour:"
     putStrLn "\t 1. Red"
@@ -86,15 +86,15 @@ chooseColor = do
     putStrLn "\t 3. Green"
     putStrLn "\t 4. Blue"
     putStr "\nYour choice: "
-    line <- getLine 
+    line <- getLine
     case readMaybe line :: Maybe Int of
-        Just 1 -> return 1 
-        Just 2 -> return 2 
-        Just 3 -> return 3 
+        Just 1 -> return 1
+        Just 2 -> return 2
+        Just 3 -> return 3
         Just 4 -> return 4
         _ -> do
-             putStrLn "\nInvalid input."
-             chooseColor
+            putStrLn "\nInvalid input."
+            chooseColor
 
 -- https://wiki.haskell.org/Timing_computations
 timedUnoCall :: IO ()
@@ -106,7 +106,7 @@ timedUnoCall = do
     putStrLn line
 
     case readMaybe line :: Maybe Int of
-        Just 1 -> do 
+        Just 1 -> do
             end   <- getCPUTime
             let diff = fromIntegral (end - start) / (10^12)
             putStrLn (show diff)
@@ -143,14 +143,17 @@ playerPlay (State aura deck tcard discard dict nplay currplay dir) = do
         Just "draw" -> do
             return Draw
         Just t -> do
-            if isJust cardToPlay && jCard `elem` jHand && isCardPlayable aura tcard jCard then do
-                return (Play jCard)
+            if isJust cardToPlay && Card jCol jNum `elem` jHand && isCardPlayable aura tcard (Card jCol jNum) then do
+                if jCol == 0 then do
+                    Play (Card jCol jNum) <$> chooseColor
+                else do
+                    return (Play (Card jCol jNum) 0)
             else do
                 putStrLn "\nInvalid input.\n"
                 playerPlay (State aura deck tcard discard dict nplay currplay dir)
             where
                 cardToPlay = readCard line
-                jCard = fromJust cardToPlay
+                (Card jCol jNum) = fromJust cardToPlay
         _ -> do
             putStrLn "\nInvalid input.\n"
             playerPlay (State aura deck tcard discard dict nplay currplay dir)

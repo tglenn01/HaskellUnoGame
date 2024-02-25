@@ -8,7 +8,8 @@ import Text.Read (readMaybe)
 import Data.Maybe (isNothing, isJust, fromJust)
 
 -- basic framework
-data Action = Play Card | Draw
+-- card played, wild colour chosen (if applicable)
+data Action = Play Card Int | Draw
 type Game = Action -> State -> Result
 type Player = State -> Action
 type PlayerID = Int
@@ -239,19 +240,19 @@ removeCardFromHand card hand
     | card == head hand = tail hand
     | otherwise = (head hand):removeCardFromHand card (tail hand)
 
-endRound :: State -> Action -> Int -> State
-endRound (State aura deck (Card col num) discard dict nplay currplay dir) action nextcol = State (nextAura (Card col num) action nextcol aura) deck (Card col num) discard dict nplay (fst dirplay) (snd dirplay) where
+endRound :: State -> Action -> State
+endRound (State aura deck (Card col num) discard dict nplay currplay dir) action = State (nextAura (Card col num) action aura) deck (Card col num) discard dict nplay (fst dirplay) (snd dirplay) where
     dirplay = if num == 11 then ((currplay + (*) (-1) dir) `mod` nplay,(*) (-1) dir) else ((currplay + dir) `mod` nplay, dir)
 
-nextAura :: Card -> Action -> Int -> Aura -> Aura
-nextAura (Card tcol tnum) Draw _ (Aura state num col)
+nextAura :: Card -> Action -> Aura -> Aura
+nextAura (Card tcol tnum) Draw (Aura state num col)
     | state `elem` [1,4] = Aura 1 0 col
     | otherwise = Aura 0 0 0
-nextAura (Card tcol tnum) (Play _) nextcol (Aura state num col)
+nextAura (Card tcol tnum) (Play _ nextcol) (Aura state num col)
     | tnum == 14 = Aura 4 (num + 4) nextcol
     | tnum == 13 = Aura 1 0 nextcol
     | tnum == 12 = Aura 2 (num + 2) col
-    | tnum == 10 = Aura 3 0 0
+    | tnum == 10 = Aura 3 0 0   -- NOTE: may not need this case in the future
     | otherwise = Aura 0 0 0
 
 -- draw deck, top discard, other discards, dictionary of player hands

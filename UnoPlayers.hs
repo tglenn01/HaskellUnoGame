@@ -4,9 +4,10 @@ import UnoBackend
 import HiddenDict
 import Data.Maybe (isJust, fromJust)
 
+-- SIMPLE BOT PLAYER 1: always chooses the first possible playable card, or draws if no cards are playable
 firstCardPlay :: State -> Action
 firstCardPlay (State aura deck tcard discard dict nplay currplay dir)
-    | isJust currHand && handHasPlayable aura tcard jHand = Play (head (getHandPlayable aura tcard jHand))
+    | isJust currHand && handHasPlayable aura tcard jHand = Play (head (getHandPlayable aura tcard jHand)) (maxWildColChooser jHand)
     | otherwise = Draw
     where
         currHand = get currplay dict
