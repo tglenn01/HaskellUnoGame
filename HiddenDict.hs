@@ -16,6 +16,11 @@ data BSTree k v = Empty
 instance Show (BSTree k v) where
     show d = "[Dict: " ++ show (size d) ++ "]"
 
+-- DEBUG ONLY: viewable HiddenDict
+-- instance (Show k, Show v) => Show (BSTree k v) where
+--    show Empty = ""
+--    show (Node k v rt lt) = show lt ++ show (k, v) ++ show rt
+
 type HiddenDict = BSTree
 
 emptyDict :: HiddenDict k v

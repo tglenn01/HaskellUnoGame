@@ -7,25 +7,26 @@ import HiddenDict
 import Text.Read (readMaybe)
 import Data.Maybe (isNothing, isJust, fromJust)
 
--- basic framework
--- card played, wild colour chosen (if applicable), UNO called
-data Action = Play Card Int Bool | Draw
+-- NOTE: unused definitions
 type Game = Action -> State -> Result
 type Player = State -> Action
-type PlayerID = Int
 data Result = ContinueState State
     | EndGame [Double] State -- TEMP
 
+-- basic framework
+-- card played, wild colour chosen (if applicable), UNO called
+data Action = Play Card Int Bool | Draw
+type PlayerID = Int
+
 -- current gameplay aura, draw deck, top discard, other discards, dictionary of player hands
 -- number of players, current player, play direction
-data State = State Aura Deck Card Deck (HiddenDict PlayerID Hand) Int PlayerID Int
+data State = State Aura Deck Card Deck (HiddenDict PlayerID [Card]) Int PlayerID Int
 -- NOTE: make sure draw deck is not shown in state
 
--- Rules == Stack Draw 2/Draw 4/Swap hands on 7/Rotate Hnads on 0
-data Rules = Rules Bool Bool Bool Bool Int
+-- Rules == Stack Draw 2, Draw 4, Swap hands on 7, Rotate Hands on 0, Draw until play, Number of start decks
+data Rules = Rules Bool Bool Bool Bool Bool Int
 
 -- collections of cards
-type Hand = [Card] -- open
 type Deck = [Card] -- hidden; needs to incorporate randomness
 -- TODO: refactor Deck to a data type so that Show can be safely overridden
 --instance Show Deck where
@@ -80,11 +81,11 @@ data Aura = Aura Int Int Int
 instance Show Aura where
     show :: Aura -> String
     show (Aura state num col)
-        | state == 1 = "[Aura: " ++ stringifyCol col ++ "]"
-        | state == 2 = "[Aura: +" ++ show num ++ "]"
-        | state == 3 = "[Aura: turn skipped]"
-        | state == 4 = "[Aura: +" ++ show num ++ ", " ++ stringifyCol col ++ "]"
-        | otherwise = "[Aura: none]"
+        | state == 1 = " [" ++ stringifyCol col ++ "]"
+        | state == 2 = " [+" ++ show num ++ "]"
+        | state == 3 = " [turn skipped]"
+        | state == 4 = " [" ++ stringifyCol col ++ ", +" ++ show num ++ "]"
+        | otherwise = ""
 
 stringifyCol :: Int -> String
 stringifyCol col
@@ -124,24 +125,24 @@ createDeckCol n = [Card n 00, Card n 01, Card n 01, Card n 02, Card n 02, Card n
 startingDeck :: Deck
 startingDeck = [Card 0 13, Card 0 13, Card 0 13, Card 0 13, Card 0 14, Card 0 14, Card 0 14, Card 0 14] ++ createDeckCol 1 ++ createDeckCol 2 ++ createDeckCol 3 ++ createDeckCol 4
 
-emptyHand :: Hand
+emptyHand :: [Card]
 emptyHand = []
 emptyDeck :: Deck
 emptyDeck = []
 
 -- remaining deck, starting top card, hand dictionary
-dealCards :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, Card, HiddenDict PlayerID Hand)
+dealCards :: Deck -> Int -> Int -> HiddenDict PlayerID [Card] -> (Deck, Card, HiddenDict PlayerID [Card])
 dealCards deck nplayers ncards dict = (first3 topCard, second3 topCard, snd dealtHands) where
-    dealtHands = dealCardsRound deck nplayers ncards dict
+    dealtHands = dealCardsRound deck (nplayers-1) ncards dict
     topCard = drawTopCard (fst dealtHands) []
 
-dealCardsRound :: Deck -> Int -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict PlayerID Hand)
+dealCardsRound :: Deck -> Int -> Int -> HiddenDict PlayerID [Card] -> (Deck, HiddenDict PlayerID [Card])
 dealCardsRound deck _ 0 dict = (deck, dict)
 dealCardsRound deck nplayers ncards dict = dealCardsRound (fst newDeck) nplayers (ncards-1) (snd newDeck) where
     newDeck = dealCardsPlayer deck nplayers dict
 
-dealCardsPlayer :: Deck -> Int -> HiddenDict PlayerID Hand -> (Deck, HiddenDict PlayerID Hand)
-dealCardsPlayer deck 0 dict = (deck, dict)
+dealCardsPlayer :: Deck -> Int -> HiddenDict PlayerID [Card] -> (Deck, HiddenDict PlayerID [Card])
+dealCardsPlayer deck (-1) dict = (deck, dict)
 dealCardsPlayer deck n dict =
     if isNothing currentHand then
         dealCardsPlayer (first3 newDeck) (n-1) (insert n (second3 newDeck : emptyHand) dict)
@@ -151,7 +152,7 @@ dealCardsPlayer deck n dict =
         currentHand = get n dict
         newDeck = drawTopCard deck []
 
-getHand :: HiddenDict PlayerID Hand -> Int -> Hand
+getHand :: HiddenDict PlayerID [Card] -> Int -> [Card]
 getHand dict currplay
     | isJust hand = fromJust hand
     | otherwise = []
@@ -284,7 +285,7 @@ nextAura (Card tcol tnum) (Play _ nextcol _) (Aura state num col)
 
 -- draw deck, top discard, other discards, dictionary of player hands
 -- number of players, current player, play direction
--- data State = State Deck Card Hand (HiddenDict PlayerID Hand) Int PlayerID Int
+-- data State = State Deck Card [Card] (HiddenDict PlayerID [Card]) Int PlayerID Int
 
 {- CARD MAPPING:
 0 = black (wild)
